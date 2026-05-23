@@ -1,457 +1,167 @@
-# The War on Cash  
-### Tracking how India stopped swiping, started scanning, and quietly rebuilt its payment system.
+# The War on Cash: India's Digital Payment Ecosystem (2019–2025)
 
-India’s digital payments story is usually told through headlines:
-- “UPI crosses record transactions”
-- “Cashless economy”
-- “Fintech boom”
+A time-series analysis of RBI Payment Systems Indicator data covering six payment modes across six fiscal years, with a 12-month forward forecast.
 
-This project looks underneath those headlines.
+<img width="1384" height="684" alt="image" src="https://github.com/user-attachments/assets/dd7156a0-4080-4a59-a456-d721ff413b2f" />
 
-Using RBI Payment Systems Indicator data from 2019–2025, the analysis explores how payment behaviour in India structurally changed after COVID, policy interventions, and large-scale UPI adoption.
-
-The project combines:
-- ETL pipelines
-- exploratory analysis
-- structural break diagnostics
-- forecasting models
-- and dashboard-driven business analysis
-
-The objective was not just forecasting.
-
-It was understanding whether India’s payment ecosystem is simply digitizing — or reorganizing itself around entirely different transaction behavior.
+UPI’s transaction value steadily expands over time, increasingly driving the growth of India’s retail digital payment ecosystem.
 
 ---
 
-# What This Project Studies
+## Project Overview
 
-This repository analyzes:
-- the rise of UPI,
-- the decline of debit-card dependence,
-- changing transaction-size behavior,
-- the effect of COVID and regulation,
-- and future payment adoption trends.
+India's payment landscape has undergone a structural shift since 2019. This project tracks that shift quantitatively — from UPI's exponential rise to the declining share of debit cards and cash proxies — and builds forecasting models to project where transaction volumes are headed through FY2026.
 
-The analysis spans:
-- retail payments,
-- enterprise settlement systems,
-- consumer behavior,
-- and macro-level transaction infrastructure.
+**Primary question:** Is UPI displacing traditional payment rails, and what does that mean for card networks, banks, and fintechs operating in the Indian market?
+
+**Target audience:** Banks, fintech startups, payment network analysts, policy researchers.
+
+**Data source:** [RBI Payment Systems Indicator](https://m.rbi.org.in/Scripts/PSIUserView.aspx?Id=10) — monthly tables, Nov 2019 – Mar 2025.
 
 ---
 
-# Core Questions
+## Dataset
 
-- Is UPI replacing traditional payment rails or merely coexisting with them?
-- Did COVID accelerate permanent payment behavior changes?
-- Are cards becoming premium-only instruments?
-- Can classical forecasting models handle near-exponential fintech adoption?
-- What happens to transaction value if Credit-on-UPI scales aggressively?
+Raw data extracted from RBI's pivot-style Excel tables and flattened into a long-format panel:
 
----
+| Column | Description |
+|---|---|
+| `Date` | Month start date (monthly frequency) |
+| `Payment_Mode` | UPI / NEFT / IMPS / RTGS / Credit / Debit |
+| `Volume` | Transaction count |
+| `Value` | Transaction value (₹) |
+| `ATS` | Average ticket size = Value / Volume |
+| `MoM` | Month-on-month growth (%) |
+| `YoY` | Year-on-year growth (%) |
+| `log_value` | log(Value) — used for SARIMA modeling |
+| `is_covid_shock` | Binary: Mar–Oct 2020 lockdown window |
+| `is_policy_change` | Binary: Jan 2020 Zero-MDR, Apr 2023 PPI cap |
+| `is_festive_month` | Binary: Oct–Nov (Diwali/festive season) |
+| `is_fy_end` | Binary: March (fiscal year-end spike) |
+| `MoM_Anomaly` | Z-score based outlier flag |
 
-# Dataset
-
-Source: RBI Payment Systems Indicators
-
-Coverage:
-- Nov 2019 → Mar 2025
-- Monthly frequency
-- 390 observations across 6 major payment systems
-
-Modes analyzed:
-- UPI
-- IMPS
-- NEFT
-- RTGS
-- Credit Cards
-- Debit Cards
-
-The raw RBI files were not analysis-ready.
-
-The original data contained:
-- pivoted tables,
-- inconsistent layouts,
-- multi-row headers,
-- and changing formatting across reports.
-
-The ETL pipeline converted this into a clean long-format panel dataset suitable for:
-- time-series analysis,
-- forecasting,
-- and dashboarding.
+390 rows × 6 modes × ~65 months.
 
 ---
 
-# Project Structure
+## Project Structure
 
-```bash
-the-war-on-cash/
-│
+```
+war_on_cash/
 ├── data/
-│   ├── raw/
-│   └── processed/
-│
+│   └── rbi_payments_clean.csv       # cleaned long-format panel
 ├── notebooks/
-│   ├── phase1_2_etl_eda.ipynb
-│   ├── phase3_diagnostic_analysis.ipynb
-│   └── phase4_forecasting.ipynb
-│
-├── dashboard/
-│   └── phase5_dashboard.pbix
-│
-├── outputs/
-│   ├── figures/
-│   ├── forecasts/
-│   └── reports/
-│
+│   ├── Phase_1_2.ipynb              # ETL + EDA
+│   ├── Phase_3.ipynb                # diagnostic analysis
+│   └── Phase_4_forecasting.ipynb   # forecasting models
 ├── src/
-│   ├── preprocessing.py
-│   ├── forecasting.py
-│   └── utils.py
-│
+│   └── utils.py                     # shared metric helpers
 ├── requirements.txt
-├── README.md
-└── .gitignore
+└── README.md
 ```
 
 ---
 
-# Phase 1 — ETL & Data Preparation
+## Phases
 
-The first phase focused on building a robust processing pipeline for RBI payment data.
+### Phase 1 — ETL & Data Cleaning
 
-### Tasks Completed
-- Extracted RBI payment system tables
-- Flattened pivot-style monthly reports
-- Standardized payment categories
-- Cleaned inconsistent schema structures
-- Built a long-format panel dataset
+The RBI source data comes as multi-row headers in a pivot layout, with separate monthly sheets. The pipeline avoids header-based parsing and instead uses deterministic column indexing with keyword validation to handle schema inconsistencies across years.
 
-### Feature Engineering
+Key steps:
+- Flatten pivot tables into a strict `(Date, Payment_Mode, Volume, Value)` long format
+- Standardise units across modes (RTGS reports in ₹ Crore; retail modes in ₹)
+- Engineer ATS, MoM, YoY, log transforms, and binary event flags
 
-Derived variables created:
-- Average Ticket Size (ATS)
-- MoM Growth %
-- YoY Growth %
-- Log-transformed transaction values
-- COVID shock indicators
-- Policy-event markers
-- Festive season flags
-- Fiscal year-end indicators
+### Phase 2 — Exploratory Data Analysis
 
-One important realization from this phase:
+- **Trend analysis:** Log-scale comparison of UPI vs debit cards confirms a substitution effect. UPI volume grew ~13× from FY2020 to FY2025; debit card volume stagnated.
+- **Seasonality:** Monthly boxplots confirm Oct–Nov festive spikes across UPI and credit cards (stronger in UPI by volume, stronger in credit cards by value).
+- **Correlation:** UPI–debit card correlation ≈ −0.91. UPI, NEFT, RTGS move together (+0.98–0.99), consistent with the same underlying macro growth.
+- **ATS divergence:** UPI ATS declining (₹1,800 → ₹1,354), credit card ATS rising (₹3,000 → ₹4,393). Classic mass-market vs premium segmentation.
 
-UPI behaves very differently from traditional banking rails.  
-Its transaction growth resembles platform adoption more than standard financial growth.
+### Phase 3 — Diagnostic Analysis
 
----
+- **COVID impact (Mar 2020):** Trend-corrected Δ% analysis (Welch t-test, ±6-month window) shows credit cards hit hardest (−35%), UPI smallest deviation (−18%), recovered within 3 months. Behavioural lock-in happened here.
+- **Policy events:**
+  - Zero-MDR mandate (Jan 2020): directionally consistent but statistically inconclusive — COVID arrived two months later and contaminated the post-event window.
+  - PPI interchange cap (Apr 2023): clearest structural shift in the dataset. IMPS shows significant positive deviation post-cap; credit card shows corresponding negative. Wallet flows migrated to bank-account-based rails.
+- **Pareto:** UPI alone crosses the 80% cumulative transaction volume threshold in FY2025.
+- **Structural breaks:** Chow test + PELT algorithm confirm two system-wide break periods: COVID shock (2020) and PPI cap (Apr 2023).
+- **Granger causality:** UPI → IMPS significant at multiple lags (shared IMPS rail). UPI → NEFT present at short lags, weakens post-2023, suggesting decoupling as modes serve increasingly distinct use cases.
 
-# Phase 2 — Exploratory Data Analysis
+### Phase 4 — Forecasting
 
-The EDA phase focused on identifying structural trends in Indian payment behavior.
+**Train:** Nov 2019 – Dec 2022 | **Test:** Jan 2023 – Dec 2024 (24 months) | **Horizon:** Apr 2025 – Mar 2026
 
-## UPI vs Debit Cards
+Three models compared against a naive seasonal baseline (ŷ(t) = y(t−12)):
 
-UPI transaction growth accelerated continuously across the dataset.
+| Model | Test MAPE | Notes |
+|---|---|---|
+| Holt-Winters ETS(A,A,A) | 3.45% | Primary model — additive trend+seasonal, fits UPI's near-linear growth |
+| SARIMA(0,2,1)×(0,1,0)[12] | 5.78% | Log-scale fit, AIC-selected, Ljung-Box residuals = white noise |
+| Prophet | 10.01% | Multiplicative seasonality + COVID/policy regressors; underperforms at test tail |
+| Naive seasonal | 40.21% | Benchmark |
 
-Debit card usage, meanwhile:
-- flattened,
-- weakened post-COVID,
-- and steadily lost relative importance.
+**Primary model:** Holt-Winters ETS(A,A,A) — lowest MAPE, interpretable parameters, appropriate for linear growth series.
 
-This suggests a direct substitution effect:
-QR-based payments increasingly replaced card-based retail behavior.
+**Scenario A:** Baseline CAGR continuation (Holt-Winters output).  
+**Scenario B:** +15% value uplift over Scenario A, modelling Credit-on-UPI rollout. The 15% is derived from approximately half the differential between credit card CAGR (~18.5%) and UPI baseline CAGR — treat as a sensitivity, not a point estimate.
 
----
+UPI forecast (Apr 2025 – Mar 2026):
 
-## Seasonality
+| | Scenario A | Scenario B |
+|---|---|---|
+| Min monthly | ₹24.07T | ₹27.68T |
+| Peak monthly | ₹28.99T (Mar 2026) | ₹33.33T (Mar 2026) |
+| 12-month uplift | — | +₹47.5T |
 
-Strong seasonal spikes appeared consistently during:
-- October–November,
-- festive shopping periods,
-- and fiscal year-end cycles.
+Per-mode forecasts use auto-selected SARIMA per mode with Holt-Winters fallback on convergence failures.
 
-The seasonality was strongest in:
-- UPI
-- Credit Cards
+### Phase 5 — Power BI Dashboard 
 
-This became important later during SARIMA modelling.
-
----
-
-## Correlation Analysis
-
-The correlation matrix revealed:
-- strong positive correlation among digital payment rails,
-- and strong negative correlation between UPI and Debit Cards.
-
-Interpretation:
-digital systems are growing together — but UPI is absorbing the majority of behavioral migration.
+Four views planned:
+1. **Executive view** — total digital transaction value (monthly), MoM growth %
+2. **Category war** — race bar chart: UPI vs NEFT vs cards over time
+3. **Ticket size tracker** — CC ATS rising (premiumisation) vs UPI ATS falling (mass adoption)
 
 ---
 
-## Average Ticket Size (ATS)
+## Key Findings
 
-One of the most interesting findings in the dataset.
+1. **UPI is dominant by volume but not revenue-generating for card networks.** UPI P2M MDR is 0% (regulatory cap). Card networks earn on transactions above ~₹5,000 - the segment where UPI's average ticket size (₹1,354) doesn't compete.
 
-### UPI
-ATS steadily declined over time:
-- indicating deeper penetration into low-value daily retail transactions.
+2. **Credit card ATS is rising (+28.7% since FY2019).** The market is self-segmenting: UPI captures micro-payments, cards capture high-value discretionary spend. This is Visa/Mastercard's structural moat.
 
-### Credit Cards
-ATS increased significantly:
-- indicating movement toward premium and discretionary spending.
+3. **Credit-on-UPI is the convergence point.** If credit rails extend onto UPI's QR infrastructure, card networks can earn MDR on UPI-initiated credit transactions. This is the key scenario to watch in FY2026.
 
-This creates a behavioral split:
+4. **The 2023 PPI cap was more consequential than the 2020 Zero-MDR mandate.** IMPS gained; credit cards lost. Wallet-funded card spend migrated to bank-account-based rails.
 
-| System | Dominant Use Case |
-|---|---|
-| UPI | High-frequency retail |
-| Credit Cards | Premium/high-ticket spending |
-| RTGS | Enterprise-scale settlement |
+5. **UPI's COVID resilience cemented behavioural adoption.** Recovery took ~3 months vs 12+ months for cards. Essential payment behaviour (groceries, utilities, P2P) locked in on UPI during lockdown and hasn't reverted.
+
+---
+## Plots
+<img width="1184" height="583" alt="image" src="https://github.com/user-attachments/assets/d6539e10-6065-44bc-91bc-777dc60000f6" />
+UPI’s exponential post-2020 growth sharply diverges from the steady decline in debit card transaction volume, highlighting a structural shift toward real-time digital payments in India.
+
+<img width="1184" height="583" alt="image" src="https://github.com/user-attachments/assets/880a7416-20d9-495a-9832-bdfdfb13d06e" />
+UPI is increasingly dominating low-value retail payments, while credit cards are shifting toward higher-ticket spending.
+
+<img width="1384" height="684" alt="image" src="https://github.com/user-attachments/assets/d55b382a-a3bc-4a67-8bbe-3d9ee6fcc51e" />
+UPI’s transaction value steadily expands over time, increasingly dominating India’s retail digital payment ecosystem.
+
+<img width="2479" height="1487" alt="image" src="https://github.com/user-attachments/assets/7eb8b9d5-1420-45f1-970a-05134f31ff8d" />
+UPI’s post-2020 acceleration sharply diverges from every major payment mode, revealing a structural shift in India’s payment ecosystem driven by COVID recovery and policy changes.
+
+<img width="2776" height="1268" alt="image" src="https://github.com/user-attachments/assets/b3c82202-0224-44cf-a3b7-37849ef02315" />
+UPI rapidly consolidates transaction dominance over FY2020–FY2025, crossing the 80% volume-share threshold and increasingly centralizing India’s retail payment ecosystem.
 
 ---
 
-# Phase 3 — Diagnostic Analysis
-
-This phase focused on understanding *why* trends shifted.
-
----
-
-## COVID Shock Analysis
-
-COVID disrupted every payment mode.
-
-But the recovery behavior differed sharply.
-
-### UPI
-- smallest long-term deviation,
-- fastest recovery,
-- returned to trend within ~3 months.
-
-### Debit Cards
-- recovered partially,
-- but never regained pre-COVID slope.
-
-### Credit Cards
-- experienced the sharpest retail collapse.
-
-This suggests that UPI’s dominance came less from immunity and more from resilience.
-
-Essential transactions:
-- groceries,
-- utilities,
-- peer-to-peer transfers
-
-continued running through UPI even during lockdown periods.
-
-That appears to be the moment long-term behavioral lock-in occurred.
-
----
-
-## Policy Impact — PPI Interchange Cap
-
-The April 2023 PPI regulation created one of the clearest structural shifts in the dataset.
-
-Observed effects:
-- IMPS strengthened,
-- wallet-linked flows weakened,
-- card transaction trajectories softened.
-
-The broader implication:
-India’s payment ecosystem increasingly shifted away from closed wallet infrastructure toward interoperable account-based rails.
-
----
-
-## Structural Break Detection
-
-Structural break analysis was performed using:
-- Chow Tests
-- PELT change-point detection
-
-Two major regime shifts were consistently detected:
-1. COVID Shock (2020)
-2. Policy Shift (Apr 2023)
-
-UPI and IMPS displayed multiple breakpoints, indicating phased adoption acceleration.
-
----
-
-## Pareto Analysis
-
-By FY2025:
-- UPI alone crossed the 80% cumulative volume threshold.
-
-The market increasingly became concentrated around:
-- UPI,
-- NEFT,
-- and IMPS.
-
-Debit and Credit systems continued growing in absolute value but lost relative transaction share.
-
----
-
-# Phase 4 — Forecasting & Scenario Planning
-
-The forecasting phase focused on predicting FY2026 transaction trends.
-
----
-
-# Forecasting Models
-
-| Model | Purpose |
-|---|---|
-| Seasonal Naive | Baseline benchmark |
-| SARIMA | Seasonal autoregressive forecasting |
-| Holt-Winters ETS | Trend + seasonality modelling |
-| Prophet | Changepoint-aware forecasting |
-
----
-
-# Forecast Setup
-
-| Split | Range |
-|---|---|
-| Train | Nov 2019 → Dec 2022 |
-| Test | Jan 2023 → Dec 2024 |
-
-Forecast horizon:
-- Apr 2025 → Mar 2026
-
-Evaluation metric:
-- MAPE (Mean Absolute Percentage Error)
-
----
-
-# Model Results
-
-| Model | MAPE |
-|---|---|
-| Holt-Winters ETS(A,A,A) | 3.45% |
-| SARIMA(0,2,1) | 5.78% |
-| Prophet | 10.01% |
-| Naive Seasonal | 40.21% |
-
-Holt-Winters consistently produced the most stable forecasts.
-
-One unexpected finding:
-classical statistical models generalized surprisingly well despite structural shocks and rapid adoption growth.
-
----
-
-# Scenario Forecasting
-
-Two scenarios were modeled.
-
-## Scenario A — Baseline Continuation
-Assumes existing CAGR trends continue.
-
-## Scenario B — Credit-on-UPI Expansion
-Applies a +15% uplift assumption to simulate aggressive Credit-on-UPI adoption.
-
-Projected impact:
-- ₹47.5T additional annual transaction value under accelerated adoption.
-
----
-
-# Advanced Extensions
-
-Additional experimental models included:
-
-### DLinear
-Neural decomposition + exogenous fusion model using:
-- ATS
-- policy indicators
-- festive flags
-- COVID markers
-
-### BSTS + MinT Reconciliation
-Implemented:
-- Bayesian structural time-series decomposition
-- hierarchical reconciliation
-- covariance-based aggregation correction
-
-These were exploratory additions rather than production-primary models.
-
----
-
-# Phase 5 — Business Dashboard
-
-The final dashboard translates the analysis into business-facing insights.
-
-Views included:
-- Executive KPI monitoring
-- Retail vs enterprise payment trends
-- Category competition analysis
-- ATS segmentation tracking
-- MoM growth monitoring
-
-The dashboard was designed for:
-- BFSI teams,
-- strategy discussions,
-- fintech presentations,
-- and policy interpretation.
-
----
-
-# Technical Stack
-
-## Languages & Libraries
-- Python
-- Pandas
-- NumPy
-- Statsmodels
-- Prophet
-- pmdarima
-- Matplotlib
-- Seaborn
-
-## Tools
-- Jupyter Notebook
-- Power BI
-- Tableau
-
----
-
-# Running the Project
-
-```bash
-pip install -r requirements.txt
-jupyter notebook notebooks/phase4_forecasting.ipynb
-```
-
----
-
-# Key Takeaways
-
-- UPI is behaving more like a national-scale platform than a conventional payment product.
-- India’s payment ecosystem is increasingly bifurcated:
-  - low-ticket retail via UPI,
-  - high-ticket spending via cards,
-  - enterprise settlement via RTGS.
-- COVID accelerated behavioral shifts that appear structurally persistent.
-- Policy interventions meaningfully altered payment-routing behavior.
-- Classical forecasting methods remain highly competitive on medium-horizon fintech forecasting problems.
-
----
-
-# Limitations
-
-- Limited historical depth (~5 years)
-- Structural discontinuities from COVID
-- No macroeconomic exogenous variables
-- No demographic segmentation
-- Forecast scenarios are assumption-driven rather than causal simulations
-
----
-
-# Final Observation
-
-India’s payment ecosystem is no longer just becoming digital.
-
-It is reorganizing around:
-- real-time infrastructure,
-- interoperable rails,
-- and frictionless retail behavior.
-
-This project attempts to measure that transition through time-series modelling, structural diagnostics, and business-oriented financial analysis.
+## Limitations
+
+- Only 65 months of monthly data per mode — seasonal estimates at the tail of the HW model are sensitive to the last 12 months.
+- COVID shock is handled as a binary flag in Prophet; SARIMA/HW treat it as a structural shock absorbed into residuals. A proper intervention model (e.g., ARIMAX with pulse/step dummies) would be more principled.
+- Scenario B (+15%) is a working assumption, not modelled endogenously. No demand elasticity or adoption curve is estimated.
+- Debit card data in RBI tables includes ATM withdrawals, making it a noisy proxy for POS card usage. The UPI–debit substitution signal is real but the magnitude is overstated.
+- No macro covariates (GDP, internet penetration, smartphone adoption) included. These are correlated with UPI growth but would require a longer sample to estimate reliably.
