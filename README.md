@@ -54,9 +54,6 @@ war_on_cash/
 │   ├── Phase_1_2.ipynb              # ETL + EDA
 │   ├── Phase_3.ipynb                # diagnostic analysis
 │   └── Phase_4_forecasting.ipynb   # forecasting models
-├── src/
-│   └── utils.py                     # shared metric helpers
-├── requirements.txt
 └── README.md
 ```
 
