@@ -6,22 +6,11 @@
 
 ## Executive Summary
 
-India's digital payment ecosystem has undergone a structural reconfiguration, not merely a cyclical growth phase. Between November 2019 and March 2025, UPI grew from a nascent rail to the dominant retail payment instrument, accounting for 89.4% of total transaction volume by FY2025. This transition is irreversible by any standard metric: volume share is monotonically increasing, debit card displacement is continuous, and two confirmed structural breaks — COVID-19 (2020) and the RBI's PPI interchange cap (April 2023) — have permanently altered mode-level trajectories.
+India's digital payment ecosystem has undergone a structural reconfiguration, not merely a cyclical growth phase. Between November 2019 and March 2025, UPI grew from a nascent rail to the dominant retail payment instrument, accounting for 89.4% of total transaction volume by FY2025. This transition is irreversible by any standard metric: volume share is monotonically increasing, debit card displacement is continuous, and two confirmed structural breaks - COVID-19 (2020) and the RBI's PPI interchange cap (April 2023) - have permanently altered mode-level trajectories.
 
-This project models that transition end-to-end. Using 65 months of RBI Payment System Indicators data, the pipeline progresses from raw pivot-table ingestion through feature engineering, correlation and seasonality analysis, econometric break detection, Granger causality testing, and a multi-model forecasting competition — culminating in scenario-based projections for FY2026.
+This project models that transition end-to-end. Using 65 months of RBI Payment System Indicators data, the pipeline progresses from raw pivot-table ingestion through feature engineering, correlation and seasonality analysis, econometric break detection, Granger causality testing, and a multi-model forecasting competition - culminating in scenario-based projections for FY2026.
 
-The strategic implications extend beyond volume statistics. UPI dominates by transaction count (40× credit cards) but generates zero MDR revenue for card networks. Credit cards, by contrast, command a 3.2× average ticket size premium over UPI (₹4,393 vs ₹1,354 as of March 2025), a gap that is widening. The convergence thesis — Credit-on-UPI as the structural bridge between network monetization and UPI's distribution — is modeled as Scenario B and projects a ₹47.5T annual incremental value uplift.
-
----
-
-## Core Research Questions
-
-- Is UPI structurally displacing traditional rails, or are these markets parallel?
-- Are debit cards in secular decline, and is that decline causally linked to UPI adoption?
-- How do regulatory shocks — Zero-MDR (2020), PPI Interchange Cap (2023) — reshape payment flow distributions?
-- What does India's digital payment mix look like in FY2026 under baseline and credit-expansion scenarios?
-- Does UPI growth Granger-cause volume shifts in adjacent modes (IMPS, NEFT, Debit)?
-- Where does Visa's revenue moat lie in a UPI-dominant ecosystem?
+The strategic implications extend beyond volume statistics. UPI dominates by transaction count (40× credit cards) but generates zero MDR revenue for card networks. Credit cards, by contrast, command a 3.2× average ticket size premium over UPI (₹4,393 vs ₹1,354 as of March 2025), a gap that is widening. The convergence thesis - Credit-on-UPI as the structural bridge between network monetization and UPI's distribution - is modeled as Scenario B and projects a ₹47.5T annual incremental value uplift.
 
 ---
 
@@ -29,17 +18,17 @@ The strategic implications extend beyond volume statistics. UPI dominates by tra
 
 **Source:** RBI Payment System Indicators — Table 45 (publicly available)  
 **Frequency:** Monthly  
-**Coverage:** November 2019 – March 2025 (65 months)  
+**Coverage:** November 2019 - March 2025 (65 months)  
 **Rows after cleaning:** 390 (long-format panel)
 
 **Payment modes covered:**
 
 | Mode | Description |
 |------|-------------|
-| UPI | Unified Payments Interface — retail P2P and P2M |
-| IMPS | Immediate Payment Service — bank-to-bank, 24×7 |
-| NEFT | National Electronic Funds Transfer — batch settlement |
-| RTGS | Real Time Gross Settlement — high-value institutional |
+| UPI | Unified Payments Interface - retail P2P and P2M |
+| IMPS | Immediate Payment Service - bank-to-bank, 24×7 |
+| NEFT | National Electronic Funds Transfer - batch settlement |
+| RTGS | Real Time Gross Settlement - high-value institutional |
 | Credit Cards | Card network transactions (Visa, Mastercard, RuPay) |
 | Debit Cards | ATM proxy + POS (structural limitations noted) |
 
@@ -63,7 +52,7 @@ The raw data used a multi-row pivot header structure with schema inconsistencies
 
 ## Project Pipeline
 
-### Phase 1 — ETL & Data Engineering
+### Phase 1 - ETL & Data Engineering
 
 The RBI dataset was not analysis-ready. The ingestion pipeline addressed:
 
@@ -76,7 +65,7 @@ After cleaning: 390 rows, 6 modes, November 2019 – March 2025.
 
 ---
 
-### Phase 2 — Exploratory Analysis
+### Phase 2 - Exploratory Analysis
 
 **UPI vs. Debit Card divergence (log-scale)**
 
@@ -96,7 +85,7 @@ UPI, NEFT, and RTGS are positively correlated (r > 0.90), reflecting shared macr
 
 ---
 
-### Phase 3 — Diagnostic Analysis
+### Phase 3 - Diagnostic Analysis
 
 #### Timeline and Structural Narrative
 
@@ -160,7 +149,7 @@ By FY2025, UPI alone crosses 80% of total retail transaction volume (89.4% by th
 
 ---
 
-### Phase 4 — Forecasting
+### Phase 4 - Forecasting
 
 **What this means:** The forecasting phase does not merely project UPI growth. It models the pace of India's transition to a UPI-centric payment architecture and quantifies the value implications of Credit-on-UPI adoption — a policy question with direct revenue consequences for global card networks.
 
@@ -237,7 +226,7 @@ Prophet underperformed relative to SARIMA and Holt-Winters. The likely cause: mu
 | 3 | Prophet (COVID + Policy regressors) | 10.01% | 2,38,215 | 1,86,504 | ✓ |
 | 4 | Naive Seasonal (baseline) | 40.21% | 7,88,531 | 7,40,882 | — |
 
-**Primary model: Holt-Winters ETS(A,A,A) — MAPE 3.45% on 24-month hold-out**
+**Primary model: Holt-Winters ETS(A,A,A) - MAPE 3.45% on 24-month hold-out**
 
 A 3.45% MAPE on a 24-month out-of-sample test spanning a structural regime change (post-PPI Cap) is a strong result. It suggests the additive trend-seasonal decomposition is capturing the genuine underlying data-generating process rather than overfitting to the training window.
 
@@ -276,7 +265,7 @@ NEFT and RTGS ranges are wide by design — both modes carry inherent settlement
 
 ### Advanced Modeling
 
-#### DLinear — Neural Decomposition with Exogenous Fusion
+#### DLinear - Neural Decomposition with Exogenous Fusion
 
 Architecture: Explicit trend-seasonal decomposition where X_t = T_t (moving-average trend) + S_t (residual). Both components are projected via separate linear heads and fused with a context vector containing ATS, COVID, policy, festive, and fiscal year-end signals.
 
@@ -321,7 +310,7 @@ Applied post-BSTS to eliminate summation drift across modes. The MinT estimator 
 
 **4. The 2023 PPI Cap created durable flow shifts.** IMPS volumes shifted upward post-April 2023 as wallet providers migrated away from PPI rails. Credit card volumes softened. Both effects persisted with 6+ month half-life. Regulatory events in India produce structural, not transient, behavioral changes.
 
-**5. COVID accelerated behavioral lock-in.** UPI's lockdown resilience was functional, not coincidental — essential payments did not require physical infrastructure. The behavioral habit established during lockdown explains why UPI's post-unlock trajectory is steeper than its pre-COVID trend, not a reversion to it.
+**5. COVID accelerated behavioral lock-in.** UPI's lockdown resilience was functional, not coincidental - essential payments did not require physical infrastructure. The behavioral habit established during lockdown explains why UPI's post-unlock trajectory is steeper than its pre-COVID trend, not a reversion to it.
 
 **6. RTGS still dominates enterprise settlement value.** Average ticket size hierarchy by March 2025: RTGS (~₹66L/txn) >> NEFT >> IMPS >> Credit >> Debit >> UPI. Enterprise B2B payment value remains entirely on RTGS/NEFT rails. UPI disruption is a retail phenomenon; institutional settlement is structurally separate and insulated.
 
@@ -329,7 +318,7 @@ Applied post-BSTS to eliminate summation drift across modes. The MinT estimator 
 
 ---
 
-## Dashboard — Power BI Visualization Layer
+## Dashboard - Power BI Visualization Layer
 
 Four dashboards translate analytical outputs into business-consumable views:
 
@@ -345,7 +334,7 @@ Four dashboards translate analytical outputs into business-consumable views:
 
 ## Forecasting Results
 
-### UPI Value — 24-Month Hold-Out (Jan 2023 – Dec 2024)
+### UPI Value - 24-Month Hold-Out (Jan 2023 – Dec 2024)
 
 | Rank | Model | MAPE | RMSE (₹ Cr) | MAE (₹ Cr) |
 |------|-------|------|------------|-----------|
